@@ -100,6 +100,9 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    /* iamos */
+    int64_t getup_tick;          /* save thick this thread have to getup*/
   };
 
 /* If false (default), use round-robin scheduler.
@@ -137,5 +140,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+bool thread_getup_thicks_less(const struct list_elem *, const struct list_elem *, void *);
 
 #endif /* threads/thread.h */

@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include <stdio.h>
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -30,6 +31,12 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+void check_wakeup(void);
+
+/* iamos */
+static struct list blocked_list;
+int blocked_list_size;
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -37,6 +44,13 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+
+  /* iamos */
+  printf(">> Timer init\n");
+  list_init(&blocked_list);
+  blocked_list_size = 0;
+  printf(">> list_init(&blocked_list);\n");
+
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -90,12 +104,25 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
-
+  // enum intr_level old_level;
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks) 
-		thread_yield ();
-	// thread_block();
+	
+	// while (timer_elapsed (start) < ticks) 
+		// thread_yield ();
 
+	// old_level = intr_disable ();
+	struct thread *cur_thread = thread_current();
+	cur_thread->getup_tick = start+ ticks;
+
+	// list_insert(&blocked_list, &t->elem);
+	// list_push_back(&blocked_list, &cur_thread->elem);
+	list_insert_ordered(&blocked_list, &cur_thread->elem, thread_getup_ticks_less(), NULL);
+	blocked_list_size++;
+	printf("Insert into blocked_list\n");
+
+	thread_block();
+
+	// intr_set_level (old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -172,8 +199,12 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
+	// printf("Tick %d\n", ticks);
   ticks++;
   thread_tick ();
+
+  /* iamos */
+  check_wakeup();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -245,4 +276,22 @@ real_time_delay (int64_t num, int32_t denom)
      the possibility of overflow. */
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
+}
+
+/* iamos */
+void check_wakeup(){
+	struct thread *t;
+	unsigned int i;
+	for(i=0; i<blocked_list_size;i++){
+		t = list_entry(list_front(&blocked_list), struct thread, elem);
+
+		if(ticks>= t->getup_tick){
+			list_pop_front(&blocked_list);
+			thread_unblock(t);
+		}
+
+		else{
+			list_insert(&blocked_list, &t->elem);
+		}	
+	}
 }
