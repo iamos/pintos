@@ -46,7 +46,7 @@ timer_init (void)
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 
   /* iamos */
-  printf(">> Timer init\n");
+  // printf(">> Timer init\n");
   list_init(&blocked_list);
   blocked_list_size = 0;
   printf(">> list_init(&blocked_list);\n");
@@ -103,26 +103,22 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
-  // enum intr_level old_level;
-	ASSERT (intr_get_level () == INTR_ON);
+	ASSERT(intr_get_level() == INTR_ON);
+	if(ticks<=0){
+		return;
+	}
+	/* Turn intterups off*/
+  	enum intr_level old_level = intr_disable();
+  	int64_t start = timer_ticks ();
 	
-	// while (timer_elapsed (start) < ticks) 
-		// thread_yield ();
-
-	// old_level = intr_disable ();
 	struct thread *cur_thread = thread_current();
 	cur_thread->getup_tick = start+ ticks;
 
-	// list_insert(&blocked_list, &t->elem);
-	// list_push_back(&blocked_list, &cur_thread->elem);
-	list_insert_ordered(&blocked_list, &cur_thread->elem, thread_getup_ticks_less(), NULL);
+	list_insert_ordered(&blocked_list, &cur_thread->elem, (list_less_func *) &cmp_ticks_less, NULL);
 	blocked_list_size++;
-	printf("Insert into blocked_list\n");
 
 	thread_block();
-
-	// intr_set_level (old_level);
+	intr_set_level (old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -281,17 +277,15 @@ real_time_delay (int64_t num, int32_t denom)
 /* iamos */
 void check_wakeup(){
 	struct thread *t;
-	unsigned int i;
-	for(i=0; i<blocked_list_size;i++){
+	while(blocked_list_size){
 		t = list_entry(list_front(&blocked_list), struct thread, elem);
-
-		if(ticks>= t->getup_tick){
+		if(ticks >= t->getup_tick){
 			list_pop_front(&blocked_list);
 			thread_unblock(t);
+			blocked_list_size--;
 		}
-
 		else{
-			list_insert(&blocked_list, &t->elem);
-		}	
+			break;
+		}
 	}
 }

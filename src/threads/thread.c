@@ -348,6 +348,12 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+
+  /* iamos */
+  enum intr_level old_level = intr_disable();
+  int old_priority = thread_current()->priority;
+
+  
 }
 
 /* Returns the current thread's priority. */
@@ -592,8 +598,28 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 
 /* iamos */
-bool thread_getup_ticks_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+bool cmp_ticks_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
   struct thread *ptr_a = list_entry(a, struct thread, elem);
   struct thread *ptr_b = list_entry(b, struct thread, elem);
-  return ptr_a->getup_tick < ptr_b->getup_tick;
+  if(ptr_a->getup_tick < ptr_b->getup_tick){
+    return true;
+  }
+  else{
+    return false;
+  }
+}
+
+bool cmp_priority_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+  struct thread *ptr_a = list_entry(a, struct thread, elem);
+  struct thread *ptr_b = list_entry(b, struct thread, elem);
+  if(ptr_a->priority < ptr_b->priority){
+    return true;
+  }
+  else{
+    return false;
+  }
+}
+
+void priority_donate(void){
+
 }
